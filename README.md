@@ -1,11 +1,11 @@
+# Pulsar Change Data Capture (CDC) with Cassandra running in Docker
+This repo documents the setup and installation step to run Pulsar, Cassandra with CDC, in Docker on Windows Subsystem for Linux (WSL2).   
+
 - [Pulsar Change Data Capture (CDC) with Cassandra running in Docker](#pulsar-change-data-capture-cdc-with-cassandra-running-in-docker)
   - [Overview](#overview)
 - [Assumptions and Requirements](#assumptions-and-requirements)
 - [Setup Cassandra Single node in Docker](#setup-cassandra-single-node-in-docker)
-
-# Pulsar Change Data Capture (CDC) with Cassandra running in Docker
-This repo documents the setup and installation step to run Pulsar, Cassandra with CDC, in Docker on Windows Subsystem for Linux (WSL2).   
-
+  
 ## Overview
 We'll detail the steps of install and implementation of 3 components for Cassandra CDC:  Pulsar, Pulsar Cassandra Source Connector, and Cassandra.  All components run in Docker Desktop on Windows 11 with WSL2.
 
