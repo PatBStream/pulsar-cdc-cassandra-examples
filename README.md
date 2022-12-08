@@ -12,6 +12,9 @@ This repo documents the setup and installation step to run Pulsar, Cassandra wit
   - [Add Keyspace and Table for CDC](#add-keyspace-and-table-for-cdc)
 - [Configure Pulsar CDC Source Connector](#configure-pulsar-cdc-source-connector)
 - [View Pulsar CDC logs](#view-pulsar-cdc-logs)
+- [Trigger CDC with Add / Update / Delete of Cassandra records](#trigger-cdc-with-add--update--delete-of-cassandra-records)
+- [View Pulsar CDC Connector status and metrics](#view-pulsar-cdc-connector-status-and-metrics)
+- [Start a Pulsar Consumer for CDC events](#start-a-pulsar-consumer-for-cdc-events)
   
 ## Overview
 We'll detail the steps of install and implementation of 3 components for Cassandra CDC:  Pulsar, Pulsar Cassandra Source Connector, and Cassandra.  All components run in Docker Desktop on Windows 11 with WSL2.
@@ -124,25 +127,26 @@ mylaptop$ docker run -e DS_LICENSE=accept -e JVM_EXTRA_OPTS="-javaagent:/config/
 **NOTE** Reference in the startup command-line for "--net pulsarcdcnet" parameter.  This is required for Docker container-to-container communication.
 
 ## Add Keyspace and Table for CDC 
-(TODO)
+Setup the Cassandra keyspace and table with CDC.  Enter these commands in "cqlsh".
 ```
-mylaptop$  docker exec -it dsehost /bin/bash
-dse@dsehost~$ bin/cqlsh
+mylaptop$ docker exec -it dsehost /bin/bash
 
-Cqlsh commands:
-create keyspace ks1 with replication = {'class':'SimpleStrategy', 'replication_factor' : 1};
-CREATE TABLE ks1.table1 (a int, b text, PRIMARY KEY(a)) WITH cdc=true;
-insert into ks1.table1 (a , b ) VALUES ( 0, 'hello');
-update ks1.table1 set b = 'Updated Hello1' where a = 1;
-delete from ks1.table1 where a = 2;
-select * from ks1.table1;
+dse@dsehost~$ bin/cqlsh
+cqlsh> create keyspace ks1 with replication = {'class':'SimpleStrategy', 'replication_factor' : 1};
+cqlsh> create table ks1.table1 (a int, b text, PRIMARY KEY(a)) WITH cdc=true;
+cqlsh> insert into ks1.table1 (a , b ) VALUES ( 0, 'hello');
+cqlsh> update ks1.table1 set b = 'Updated Hello1' where a = 1;
+cqlsh> delete from ks1.table1 where a = 1;
+cqlsh> select * from ks1.table1;
 ```
 
 # Configure Pulsar CDC Source Connector
-(TODO)
+Add the Pulsar CDC Source Connector 
 
 ```
-pulsar-admin source create \ --name cassandra-source-1 \ --archive /config/pulsar-cassandra-source-1.0.5.nar \ --tenant public \ --namespace default \ --destination-topic-name persistent://public/default/data-ks1.table1 \ --parallelism 1 \ --source-config '{ "events.topic": "persistent://public/default/events-ks1.table1", "keyspace": "ks1", "table": "table1", "contactPoints": "dsehost", "port": 9042, "loadBalancing.localDc": "dc1", "auth.provider": "PLAIN", "auth.username": "<username>", "auth.password": "<password>" }'
+mylaptop$ docker exec -it pulsar /bin/bash
+I have no name!@pulsarhost:/pulsar$
+I have no name!@pulsarhost:/pulsar$ bin/pulsar-admin source create \ --name cassandra-source-1 \ --archive /config/pulsar-cassandra-source-1.0.5.nar \ --tenant public \ --namespace default \ --destination-topic-name persistent://public/default/data-ks1.table1 \ --parallelism 1 \ --source-config '{ "events.topic": "persistent://public/default/events-ks1.table1", "keyspace": "ks1", "table": "table1", "contactPoints": "dsehost", "port": 9042, "loadBalancing.localDc": "dc1", "auth.provider": "PLAIN", "auth.username": "<username>", "auth.password": "<password>" }'
 ```
 
 # View Pulsar CDC logs
@@ -165,4 +169,62 @@ encies, it may be a NAR file
 g file as NAR file: /pulsar/download/pulsar_functions/public/default/cassandra-source-1/0/pulsar-cassandra-source-
 1.0.5.nar
 ```
+# Trigger CDC with Add / Update / Delete of Cassandra records
+Trigger a CDC event message by adding, updating, and/or deleting record in the Cassandra table created in previous steps.
+
+```
+mylaptop$ docker exec -it dsehost /bin/bash
+
+dse@dsehost~$ bin/cqlsh
+cqlsh> insert into ks1.table1 (a , b ) VALUES ( 0, 'hello');
+cqlsh> update ks1.table1 set b = 'Updated Hello1' where a = 1;
+cqlsh> delete from ks1.table1 where a = 1;
+cqlsh> select * from ks1.table1;
+```
+Continue to **change** records to trigger more **events** messages to Pulsar
+
+# View Pulsar CDC Connector status and metrics
+
+```
+mylaptop$ docker exec -it pulsar /bin/bash
+I have no name!@pulsarhost:/pulsar$ bin/pulsar-admin source status --name cassandra-source-1
+{
+  "numInstances" : 1,
+  "numRunning" : 1,
+  "instances" : [ {
+    "instanceId" : 0,
+    "status" : {
+      "running" : true,
+      "error" : "",
+      "numRestarts" : 0,
+      "numReceivedFromSource" : 1,
+      "numSystemExceptions" : 0,
+      "latestSystemExceptions" : [ ],
+      "numSourceExceptions" : 0,
+      "latestSourceExceptions" : [ ],
+      "numWritten" : 1,
+      "lastReceivedTime" : 1670453112119,
+      "workerId" : "c-standalone-fw-localhost-8080"
+    }
+  } ]
+}
+```
+**NOTE** The status and metrics values "numRunning" : 1," and "numReceivedFromSource" : 1,"  
+
+Addition pulsar-admin commands to try:  
+pulsar-admin topics list public/default  
+pulsar-admin topics stats public/default/events-ks1.table1  
+pulsar-admin source status --name cassandra-source-1  
+pulsar-admin source get --name cassandra-source-1  
+pulsar-client consume persistent://public/default/data-ks1.table1 -s mysub -n 0  
+
+# Start a Pulsar Consumer for CDC events
+Start a Pulsar Client consumer "-n 0" param so it will receive all messages.  
+```
+mylaptop$ docker exec -it pulsar /bin/bash
+I have no name!@pulsarhost:/pulsar$ bin/pulsar-client consume persistent://public/default/data-ks1.table1 -s mysub -n 0  
+```
+Now add/update/delete a record in Cassandra.  The Pulsar consumer should log and report receiving message.  
+
+**NOTE** A future example/demo will describe the **event messages** created by CDC.  Those are documented at https://docs.datastax.com/en/cdc-for-cassandra/cdc-apache-cassandra/2.2.1/cdc-cassandra-events.html  
 
