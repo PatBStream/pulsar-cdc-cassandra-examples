@@ -29,8 +29,9 @@ For this demo and examples, we'll use the following components, OSS and communit
 
 # Assumptions and Requirements
 * Linux based system (or laptop with WSL2 and Ubuntu)
-* Access to the internet from laptop
 * Docker Desktop installed and running normally
+* Familiar with Docker commands and concepts
+* Ability to download files from the Internet 
 
 
 # 01. Setup Cassandra Single node and CDC configuration 
@@ -58,6 +59,8 @@ mylaptop$ mkdir ~/pulsar-cdc/config
 Download the following Cassandra config files into "config".  
 https://github.com/datastax/docker-images/blob/master/config-templates/DSE/6.8.1/cassandra.yaml  
 https://github.com/datastax/docker-images/blob/master/config-templates/DSE/6.8.1/cassandra-env.sh  
+
+Or see examples with CDC updates at [configs/cassandra-env.sh](configs/cassandra-env.sh) and [configs/cassandra.yaml](configs/cassandra.yaml)  
 
 ```
 mylaptop$ cd ~/pulsar-cdc/config
@@ -125,7 +128,15 @@ Start Cassandra in Docker:
 ```
 mylaptop$ docker run -e DS_LICENSE=accept -e JVM_EXTRA_OPTS="-javaagent:/config/agent-dse4-luna-1.0.5-all.jar" --name dsehost -h dsehost -v ~/pulsar-cdc/config:/config -d --net pulsarcdcnet -e CASSANDRA_BROADCAST_ADDRESS=dsehost datastax/dse-server:6.8.29-1
 ```  
-**NOTE** Reference in the startup command-line for "--net pulsarcdcnet" parameter.  This is required for Docker container-to-container communication.
+**NOTE** Reference in the startup command-line for "--net pulsarcdcnet" parameter.  This is required for Docker container-to-container communication.  
+
+**NOTE** Reference to CDC Cassandra Agent with param "-e JVM_EXTRA_OPTS="-javaagent:/config/agent-dse4-luna-1.0.5-all.jar"" and the Docker volume mount to access this file, "-v ~/pulsar-cdc/config:/config"  
+
+If needed, you can "pull" the Cassandra docker image before starting, to speedup this step.
+```
+mylaptop$ docker pull datastax/dse-server:6.8.29-1
+```
+
 
 ## Add Keyspace and Table for CDC 
 Setup the Cassandra keyspace and table with CDC.  Enter these commands in "cqlsh".
@@ -210,11 +221,13 @@ I have no name!@pulsarhost:/pulsar$ bin/pulsar-admin source status --name cassan
 **NOTE** The status and metrics values "numRunning" : 1," and "numReceivedFromSource" : 1,"  
 
 Addition pulsar-admin commands to try:  
+```
 pulsar-admin topics list public/default  
 pulsar-admin topics stats public/default/events-ks1.table1  
 pulsar-admin source status --name cassandra-source-1  
 pulsar-admin source get --name cassandra-source-1  
 pulsar-client consume persistent://public/default/data-ks1.table1 -s mysub -n 0  
+```
 
 # 10. Start a Pulsar Consumer for CDC events
 Start a Pulsar Client consumer "-n 0" param so it will receive all messages.  
