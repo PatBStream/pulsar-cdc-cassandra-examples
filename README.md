@@ -1,20 +1,20 @@
-# Pulsar Change Data Capture (CDC) with Cassandra running in Docker
-This repo documents the setup and installation step to run Pulsar, Cassandra with CDC, in Docker on Windows Subsystem for Linux (WSL2).   
+# Demo of Pulsar Change Data Capture (CDC) with Cassandra running in Docker
+This repo documents the setup and installation steps to run Pulsar and Cassandra with CDC, in Docker on Linux.  These steps apply for Windows Subsystem for Linux (WSL2) as well, or any Linux-based OS.  
 
-- [Pulsar Change Data Capture (CDC) with Cassandra running in Docker](#pulsar-change-data-capture-cdc-with-cassandra-running-in-docker)
+- [Demo of Pulsar Change Data Capture (CDC) with Cassandra running in Docker](#demo-of-pulsar-change-data-capture-cdc-with-cassandra-running-in-docker)
   - [Overview](#overview)
 - [Assumptions and Requirements](#assumptions-and-requirements)
-- [Setup Cassandra Single node and CDC configuration](#setup-cassandra-single-node-and-cdc-configuration)
-- [Setup Pulsar Source Connector for CDC](#setup-pulsar-source-connector-for-cdc)
-- [Setup Docker Network for Pulsar and Cassandra Containers](#setup-docker-network-for-pulsar-and-cassandra-containers)
-- [Start Pulsar in Docker](#start-pulsar-in-docker)
-- [Start Cassandra and setup Keyspace and Table for CDC](#start-cassandra-and-setup-keyspace-and-table-for-cdc)
+- [01. Setup Cassandra Single node and CDC configuration](#01-setup-cassandra-single-node-and-cdc-configuration)
+- [02. Setup Pulsar Source Connector for CDC](#02-setup-pulsar-source-connector-for-cdc)
+- [03. Setup Docker Network for Pulsar and Cassandra Containers](#03-setup-docker-network-for-pulsar-and-cassandra-containers)
+- [04. Start Pulsar in Docker](#04-start-pulsar-in-docker)
+- [05. Start Cassandra and setup Keyspace and Table for CDC](#05-start-cassandra-and-setup-keyspace-and-table-for-cdc)
   - [Add Keyspace and Table for CDC](#add-keyspace-and-table-for-cdc)
-- [Configure Pulsar CDC Source Connector](#configure-pulsar-cdc-source-connector)
-- [View Pulsar CDC logs](#view-pulsar-cdc-logs)
-- [Trigger CDC with Add / Update / Delete of Cassandra records](#trigger-cdc-with-add--update--delete-of-cassandra-records)
-- [View Pulsar CDC Connector status and metrics](#view-pulsar-cdc-connector-status-and-metrics)
-- [Start a Pulsar Consumer for CDC events](#start-a-pulsar-consumer-for-cdc-events)
+- [06. Configure Pulsar CDC Source Connector](#06-configure-pulsar-cdc-source-connector)
+- [07. View Pulsar CDC logs](#07-view-pulsar-cdc-logs)
+- [08. Trigger CDC with Add / Update / Delete of Cassandra records](#08-trigger-cdc-with-add--update--delete-of-cassandra-records)
+- [09. View Pulsar CDC Connector status and metrics](#09-view-pulsar-cdc-connector-status-and-metrics)
+- [10. Start a Pulsar Consumer for CDC events](#10-start-a-pulsar-consumer-for-cdc-events)
   
 ## Overview
 We'll detail the steps of install and implementation of 3 components for Cassandra CDC:  Pulsar, Pulsar Cassandra Source Connector, and Cassandra.  All components run in Docker Desktop on Windows 11 with WSL2.
@@ -28,11 +28,12 @@ For this demo and examples, we'll use the following components, OSS and communit
 * Pulsar Connector for Cassandra CDC (https://downloads.datastax.com/#cassandra-source-connector)
 
 # Assumptions and Requirements
+* Linux based system (or laptop with WSL2 and Ubuntu)
 * Access to the internet from laptop
 * Docker Desktop installed and running normally
-* WSL2 installed and running Ubuntu 
 
-# Setup Cassandra Single node and CDC configuration 
+
+# 01. Setup Cassandra Single node and CDC configuration 
 Download the following files into a local directory/folder.  For example, local directory ~/pulsar-cdc/
 [DataStax Change Agent for Apache Cassandra (CAC)](https://downloads.datastax.com/#cassandra-change-agent)
 Untar the file as needed
@@ -75,7 +76,7 @@ cdc_enabled: true
 commitlog_sync_period_in_ms: 2000
 cdc_total_space_in_mb: 50000
 ```
-# Setup Pulsar Source Connector for CDC
+# 02. Setup Pulsar Source Connector for CDC
 Download the DataStax Cassandra Source Connector for Apache Pulsar (CSC) file:  
 https://downloads.datastax.com/#cassandra-source-connector  
 Untar the file as needed:
@@ -106,20 +107,20 @@ drwxr-xr-x 8 user1 user1     4096 Dec  6 08:17 ..
 -rw-r--r-- 1 user1 user1 84160763 Apr 11  2022 pulsar-cassandra-source-1.0.5.nar
 
 ```
-# Setup Docker Network for Pulsar and Cassandra Containers
+# 03. Setup Docker Network for Pulsar and Cassandra Containers
 Setup a Docker network so the containers can communiate like normal host/servers.  We'll label our network **pulsarcdcnet**.
 ```
 mylaptop$ docker network create pulsarcdcnet
 
 ```
-# Start Pulsar in Docker
+# 04. Start Pulsar in Docker
 Start Pulsar Standalone in a Docker container:
 ```
 mylaptop$ docker run -it -p 6650:6650  -p 8080:8080 -d -h pulsarhost --name pulsar  -v ~/pulsar-cdc/config:/config --net pulsarcdcnet datastax/lunastreaming:2.10_2.0 bin/pulsar standalone
 
 ```
 **NOTE** Reference in the startup command-line for "--net pulsarcdcnet" parameter.  This is required for Docker container-to-container communication.
-# Start Cassandra and setup Keyspace and Table for CDC
+# 05. Start Cassandra and setup Keyspace and Table for CDC
 Start Cassandra in Docker:
 ```
 mylaptop$ docker run -e DS_LICENSE=accept -e JVM_EXTRA_OPTS="-javaagent:/config/agent-dse4-luna-1.0.5-all.jar" --name dsehost -h dsehost -v ~/pulsar-cdc/config:/config -d --net pulsarcdcnet -e CASSANDRA_BROADCAST_ADDRESS=dsehost datastax/dse-server:6.8.29-1
@@ -134,13 +135,10 @@ mylaptop$ docker exec -it dsehost /bin/bash
 dse@dsehost~$ bin/cqlsh
 cqlsh> create keyspace ks1 with replication = {'class':'SimpleStrategy', 'replication_factor' : 1};
 cqlsh> create table ks1.table1 (a int, b text, PRIMARY KEY(a)) WITH cdc=true;
-cqlsh> insert into ks1.table1 (a , b ) VALUES ( 0, 'hello');
-cqlsh> update ks1.table1 set b = 'Updated Hello1' where a = 1;
-cqlsh> delete from ks1.table1 where a = 1;
-cqlsh> select * from ks1.table1;
+
 ```
 
-# Configure Pulsar CDC Source Connector
+# 06. Configure Pulsar CDC Source Connector
 Add the Pulsar CDC Source Connector 
 
 ```
@@ -149,7 +147,7 @@ I have no name!@pulsarhost:/pulsar$
 I have no name!@pulsarhost:/pulsar$ bin/pulsar-admin source create \ --name cassandra-source-1 \ --archive /config/pulsar-cassandra-source-1.0.5.nar \ --tenant public \ --namespace default \ --destination-topic-name persistent://public/default/data-ks1.table1 \ --parallelism 1 \ --source-config '{ "events.topic": "persistent://public/default/events-ks1.table1", "keyspace": "ks1", "table": "table1", "contactPoints": "dsehost", "port": 9042, "loadBalancing.localDc": "dc1", "auth.provider": "PLAIN", "auth.username": "<username>", "auth.password": "<password>" }'
 ```
 
-# View Pulsar CDC logs
+# 07. View Pulsar CDC logs
 To view the Pulsar CDC Source Connector logfiles, attach to the running Docker container "pulsar" and then tail or cat the logfile.
 ```
 mylaptop$ docker exec -it pulsar /bin/bash
@@ -169,7 +167,7 @@ encies, it may be a NAR file
 g file as NAR file: /pulsar/download/pulsar_functions/public/default/cassandra-source-1/0/pulsar-cassandra-source-
 1.0.5.nar
 ```
-# Trigger CDC with Add / Update / Delete of Cassandra records
+# 08. Trigger CDC with Add / Update / Delete of Cassandra records
 Trigger a CDC event message by adding, updating, and/or deleting record in the Cassandra table created in previous steps.
 
 ```
@@ -183,7 +181,7 @@ cqlsh> select * from ks1.table1;
 ```
 Continue to **change** records to trigger more **events** messages to Pulsar
 
-# View Pulsar CDC Connector status and metrics
+# 09. View Pulsar CDC Connector status and metrics
 
 ```
 mylaptop$ docker exec -it pulsar /bin/bash
@@ -218,7 +216,7 @@ pulsar-admin source status --name cassandra-source-1
 pulsar-admin source get --name cassandra-source-1  
 pulsar-client consume persistent://public/default/data-ks1.table1 -s mysub -n 0  
 
-# Start a Pulsar Consumer for CDC events
+# 10. Start a Pulsar Consumer for CDC events
 Start a Pulsar Client consumer "-n 0" param so it will receive all messages.  
 ```
 mylaptop$ docker exec -it pulsar /bin/bash
